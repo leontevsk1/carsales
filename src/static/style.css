@@ -1,0 +1,146 @@
+:root {
+  --bg-color: #121212;
+  --surface-color: #1e1e1e;
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --accent-color: #bb86fc;
+  --error-color: #cf6679;
+  --border-radius: 8px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.container {
+  background-color: var(--surface-color);
+  padding: 30px;
+  border-radius: var(--border-radius);
+  width: 100%;
+  max-width: 800px;
+  /* Было 600px, делаем 800px для комфортного размещения 2 колонок */
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin-bottom: 5px;
+}
+
+.subtitle {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 25px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 480px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+}
+
+label {
+  font-size: 0.85rem;
+  margin-bottom: 5px;
+  color: var(--text-secondary);
+}
+
+input,
+select {
+  width: 100%;
+  /* Обязательное правило: не вылезать за рамки колонки */
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  border: 1px solid #333;
+  padding: 10px;
+  border-radius: 4px;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s;
+
+  /* Обрезаем слишком длинный текст троеточием, чтобы не ломал верстку */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+input:focus,
+select:focus {
+  border-color: var(--accent-color);
+}
+
+/* Стилизация невалидных полей после попытки отправки */
+form.submitted input:invalid,
+form.submitted select:invalid {
+  border-color: var(--error-color);
+}
+
+button {
+  width: 100%;
+  background-color: var(--accent-color);
+  color: #000;
+  border: none;
+  padding: 12px;
+  font-size: 1rem;
+  font-weight: bold;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.result-card {
+  margin-top: 25px;
+  padding-top: 20px;
+  border-top: 1px solid #333;
+  text-align: center;
+}
+
+.result-card.hidden {
+  display: none;
+}
+
+.price-display {
+  font-size: 2rem;
+  font-weight: bold;
+  color: var(--accent-color);
+  margin: 10px 0;
+}
+
+.verdict-display {
+  font-size: 1rem;
+  color: var(--text-secondary);
+}

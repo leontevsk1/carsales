@@ -1,10 +1,10 @@
-use axum::{Json, Router, extract::State, routing::post};
+use axum::{Json, Router, extract::State, routing::get, routing::post};
 use ort::{inputs, session::Session};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
-
+use tower_http::services::ServeDir;
 const E: f32 = 0.1571;
 // 1. Описываем какой json мы ждем от пользователя,
 // Макрос Deserialize заставляет serde автоматически парсить входящий json в структуру
@@ -25,24 +25,6 @@ pub struct CarFeatures {
     pub engine_displacement: String,
     pub location: String,
     pub price: Option<f32>,
-}
-#[derive(Deserialize, Clone)]
-pub struct CategoryMappings {
-    pub brand: HashMap<String, u32>,
-    pub name: HashMap<String, u32>,
-    #[serde(rename = "bodyType")] // Сопоставляем camelCase из JSON с snake_case в Rust
-    pub body_type: HashMap<String, u32>,
-    pub color: HashMap<String, u32>,
-    #[serde(rename = "fuelType")]
-    pub fuel_type: HashMap<String, u32>,
-    pub transmission: HashMap<String, u32>,
-    #[serde(rename = "vehicleConfiguration")]
-    pub vehicle_configuration: HashMap<String, u32>,
-    #[serde(rename = "engineName")]
-    pub engine_name: HashMap<String, u32>,
-    #[serde(rename = "engineDisplacement")]
-    pub engine_displacement: HashMap<String, u32>,
-    pub location: HashMap<String, u32>,
 }
 // 2. Описываем какую структуру возвращаем пользователю
 // Макрос Serialize запаковывает структуру обратно в json
@@ -92,47 +74,6 @@ impl DealQuality {
             Self::Expensive => "Дорого: выше оценки".to_string(),
             Self::TooExpensive => "Слишком завышенная цена".to_string(),
         }
-    }
-}
-
-impl CarFeatures {
-    pub fn to_features(&self, m: &CategoryMappings) -> Vec<f32> {
-        let mut f: Vec<f32> = Vec::with_capacity(86);
-
-        // Базовые числовые признаки
-        f.push(self.year);
-        f.push(self.mileage);
-        f.push(self.power);
-
-        // Вспомогательная функция для получения ID или 0 (default)
-        let get_id = |map: &HashMap<String, u32>, key: &String| map.get(key).copied().unwrap_or(0);
-
-        // Кодируем категориальные признаки в биты
-        encode_binary(get_id(&m.brand, &self.brand), 8, &mut f);
-        encode_binary(get_id(&m.name, &self.name), 12, &mut f);
-        encode_binary(get_id(&m.body_type, &self.body_type), 4, &mut f);
-        encode_binary(get_id(&m.color, &self.color), 5, &mut f);
-        encode_binary(get_id(&m.fuel_type, &self.fuel_type), 2, &mut f);
-        encode_binary(get_id(&m.transmission, &self.transmission), 3, &mut f);
-        encode_binary(
-            get_id(&m.vehicle_configuration, &self.vehicle_configuration),
-            15,
-            &mut f,
-        );
-        encode_binary(get_id(&m.engine_name, &self.engine_name), 13, &mut f);
-        encode_binary(
-            get_id(&m.engine_displacement, &self.engine_displacement),
-            7,
-            &mut f,
-        );
-        encode_binary(get_id(&m.location, &self.location), 12, &mut f);
-
-        // Вычисляемые признаки
-        let car_age = (2026.0 - self.year).max(1.0);
-        f.push(car_age);
-        f.push(self.mileage / car_age);
-
-        f
     }
 }
 
@@ -240,6 +181,12 @@ async fn price_prediction(
     })
 }
 
+async fn get_mappings(
+    State(state): State<Arc<AppState>>,
+) -> Json<HashMap<String, HashMap<String, u32>>> {
+    Json(state.mappings.clone())
+}
+
 // 4. Точка входа
 #[tokio::main] // Этот макрос запускает асинхронный движок
 async fn main() {
@@ -268,8 +215,11 @@ async fn main() {
 
     let app = Router::new()
         .route("/predict", post(price_prediction))
+        .route("/api/mappings", get(get_mappings)) // <-- Добавили этот маршрут
+        // Указываем папку со статикой. Если пользователь зайдет на "/",
+        // сервер автоматически отдаст index.html из папки static
+        .fallback_service(ServeDir::new("static"))
         .with_state(shared_state);
-
     let listener = TcpListener::bind("0.0.0.0:3000").await.unwrap();
     println!("Сервер запущен на http://0.0.0.0:3000");
 

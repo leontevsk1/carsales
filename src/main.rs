@@ -1,4 +1,5 @@
 use axum::{Json, Router, extract::State, routing::get, routing::post};
+use ort::session::builder::GraphOptimizationLevel;
 use ort::{inputs, session::Session};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
@@ -196,9 +197,12 @@ async fn main() {
     // 2. Загружаем саму модель из файла
     let model = Session::builder()
         .unwrap()
+        .with_optimization_level(GraphOptimizationLevel::Disable) // <-- Критически важно! Отключаем жор памяти
+        .unwrap()
+        .with_intra_threads(1) // Ограничиваем потоки
+        .unwrap()
         .commit_from_file("model/random_forest_cars.onnx")
         .expect("Не найден файл модели!");
-
     println!("Загрузка маппингов из Json");
 
     let mapping_data =

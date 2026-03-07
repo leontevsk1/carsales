@@ -3,48 +3,86 @@ document.addEventListener('DOMContentLoaded', async () => {
     const submitBtn = document.getElementById('submit-btn');
     const resultCard = document.getElementById('result-card');
     
+    // Глобальная переменная для хранения словарей, чтобы использовать их при валидации
+    // Глобальные переменные для хранения словарей
+    let globalMappings = {};
+    const memoryOptions = {}; // <-- Здесь будут лежать отсортированные массивы
+
     // 1. Загрузка словарей из Rust-бэкенда
     try {
         const response = await fetch('/api/mappings');
         if (!response.ok) throw new Error('Не удалось загрузить словари');
-        const mappings = await response.json();
+        globalMappings = await response.json();
 
-        // Проходим по всем select элементам и заполняем их
-        const selects = form.querySelectorAll('select');
-        selects.forEach(select => {
-            // Ищем словарь по data-dict, если нет - по id (name, brand, color и т.д.)
-            const dictKey = select.getAttribute('data-dict') || select.id;
-            const dict = mappings[dictKey];
+        const inputsWithList = form.querySelectorAll('input[list]');
+        
+        inputsWithList.forEach(input => {
+            const listId = input.getAttribute('list');
+            const datalist = document.getElementById(listId);
+            const dictKey = input.getAttribute('data-dict') || input.id;
+            const dict = globalMappings[dictKey];
 
-            if (dict) {
-                // Очищаем "Загрузка..." и ставим дефолтный пункт
-                select.innerHTML = '<option value="" disabled selected>Выберите значение</option>';
+            if (dict && datalist) {
+                // Сохраняем все варианты в быструю память JS, а не в тяжелый HTML
+                memoryOptions[input.id] = Object.keys(dict).sort();
                 
-                // Получаем все ключи (названия) из словаря и сортируем их по алфавиту
-                const options = Object.keys(dict).sort();
+                // Функция-рендерер: отдает браузеру только топ-50 результатов
+                const renderDatalist = (query) => {
+                    const lowerQuery = query.toLowerCase();
+                    // JS фильтрует массивы из 5000 элементов за доли миллисекунды
+                    const filtered = memoryOptions[input.id]
+                        .filter(opt => opt.toLowerCase().includes(lowerQuery))
+                        .slice(0, 50); // <-- Жестко ограничиваем объем для рендера
+                    
+                    datalist.innerHTML = '';
+                    filtered.forEach(opt => {
+                        const optionElement = document.createElement('option');
+                        optionElement.value = opt;
+                        datalist.appendChild(optionElement);
+                    });
+                };
+
+                // При фокусе на поле (даже пустом) показываем первые 50 вариантов
+                input.addEventListener('focus', (e) => renderDatalist(e.target.value));
                 
-                options.forEach(optValue => {
-                    const optionElement = document.createElement('option');
-                    optionElement.value = optValue;
-                    // Делаем первую букву заглавной для красоты
-                    optionElement.textContent = optValue.charAt(0).toUpperCase() + optValue.slice(1);
-                    select.appendChild(optionElement);
-                });
+                // При вводе текста обновляем подсказки
+                input.addEventListener('input', (e) => renderDatalist(e.target.value));
+                
             } else {
-                select.innerHTML = `<option value="" disabled selected>Словарь ${dictKey} не найден</option>`;
+                input.placeholder = "Словарь не найден";
+                input.disabled = true;
             }
         });
     } catch (error) {
         console.error('Ошибка загрузки маппингов:', error);
         alert('Не удалось загрузить списки категорий из модели.');
-    }
-
-    // 2. Обработка отправки формы
+    }    // 2. Обработка отправки формы
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         form.classList.add('submitted');
 
+        // Базовая HTML5 валидация (проверка на пустые required поля)
         if (!form.checkValidity()) return;
+
+        // --- НОВАЯ СТРОГАЯ ВАЛИДАЦИЯ СЛОВАРЕЙ ---
+        // Проверяем, что текст, введенный пользователем, реально существует в JSON-словарях
+        const inputsWithList = form.querySelectorAll('input[list]');
+        for (const input of inputsWithList) {
+            const dictKey = input.getAttribute('data-dict') || input.id;
+            const dict = globalMappings[dictKey];
+            const enteredValue = input.value;
+
+            // Если словарь существует, но введенного значения в нем нет
+            if (dict && !dict.hasOwnProperty(enteredValue)) {
+                alert(`Значение "${enteredValue}" в поле недопустимо. Пожалуйста, выберите существующий вариант из выпадающей подсказки.`);
+                input.focus();
+                input.style.borderColor = 'var(--error-color)';
+                return; // Прерываем отправку формы
+            } else {
+                input.style.borderColor = '#333'; // Сбрасываем ошибку, если всё ок
+            }
+        }
+        // ----------------------------------------
 
         submitBtn.disabled = true;
         submitBtn.textContent = 'Обработка...';
